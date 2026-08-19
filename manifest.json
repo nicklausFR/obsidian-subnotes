@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-subnotes",
+  "name": "Obsidian Subnotes",
+  "version": "0.2.5",
+  "minAppVersion": "1.0.0",
+  "description": "Create and manage lightweight sub-notes embedded in parent notes.",
+  "author": "nicklausFR",
+  "isDesktopOnly": false
+}
