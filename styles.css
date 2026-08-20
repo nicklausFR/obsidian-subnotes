@@ -4,6 +4,11 @@
   position: relative;
 }
 
+.obsidian-subnotes-callout,
+.callout[data-callout^="subnote-virtual-"] {
+  --callout-color: var(--obsidian-subnotes-callout-color, var(--callout-note));
+}
+
 /* One explicit fold control, immediately left of the title. */
 .obsidian-subnotes-fold-toggle {
   display: inline-flex;
@@ -77,7 +82,6 @@ body:not(.obsidian-subnotes-custom-css-enabled)
 
 /* Virtual sub-notes use their own callout type but keep the same note look. */
 .callout[data-callout^="subnote-virtual-"] {
-  --callout-color: var(--color-blue-rgb);
   --callout-icon: lucide-pencil;
 }
 
@@ -87,6 +91,20 @@ body:not(.obsidian-subnotes-custom-css-enabled)
   max-height: var(--obsidian-subnotes-max-height, 150px);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Obsidian renders virtual callout body lines as paragraphs with regular
+   block margins. File embeds render the same text more compactly, so keep
+   direct virtual paragraphs aligned with file sub-note spacing. */
+.obsidian-subnotes-virtual-callout > .callout-content > p {
+  margin-block: 0;
+}
+
+.obsidian-subnotes-callout
+  .obsidian-subnotes-embed
+  .markdown-preview-sizer
+  p {
+  margin-block: 0;
 }
 
 /* Markdown-formatted sub-note titles. Plain titles keep Obsidian's native rendering. */
@@ -201,6 +219,10 @@ body:not(.obsidian-subnotes-custom-css-enabled)
 
 .obsidian-subnotes-inline-editor > :last-child {
   margin-bottom: 0;
+}
+
+.obsidian-subnotes-inline-editor > p {
+  margin-block: 0;
 }
 
 .obsidian-subnotes-settings-heading {

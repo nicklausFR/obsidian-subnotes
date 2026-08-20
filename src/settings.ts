@@ -6,6 +6,19 @@ export type SubnoteFolderMode = 'same-folder' | 'fixed-folder';
 export type IndicatorPosition = 'prefix' | 'suffix';
 export type DefaultFoldState = 'expanded' | 'collapsed';
 export type SubnoteStorageType = 'virtual' | 'file';
+export type SubnoteColor =
+  | 'note'
+  | 'info'
+  | 'todo'
+  | 'tip'
+  | 'success'
+  | 'question'
+  | 'warning'
+  | 'failure'
+  | 'danger'
+  | 'bug'
+  | 'example'
+  | 'quote';
 
 export interface SubnotesSettings {
   interfaceLanguage: InterfaceLanguage;
@@ -16,6 +29,7 @@ export interface SubnotesSettings {
   indicatorPosition: IndicatorPosition;
   defaultFoldState: DefaultFoldState;
   defaultStorageType: SubnoteStorageType;
+  subnoteColor: SubnoteColor;
   maxEmbedHeight: number;
   overflowFadeSize: number;
   customCssEnabled: boolean;
@@ -33,6 +47,7 @@ export const DEFAULT_SETTINGS: SubnotesSettings = {
   indicatorPosition: 'prefix',
   defaultFoldState: 'expanded',
   defaultStorageType: 'file',
+  subnoteColor: 'note',
   maxEmbedHeight: 150,
   overflowFadeSize: 34,
   customCssEnabled: false,
@@ -167,6 +182,30 @@ export class SubnotesSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultFoldState)
           .onChange(async (value) => {
             this.plugin.settings.defaultFoldState = value as DefaultFoldState;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName(text('subnoteColorName'))
+      .setDesc(text('subnoteColorDesc'))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('note', text('colorNoteOption'))
+          .addOption('info', text('colorInfoOption'))
+          .addOption('todo', text('colorTodoOption'))
+          .addOption('tip', text('colorTipOption'))
+          .addOption('success', text('colorSuccessOption'))
+          .addOption('question', text('colorQuestionOption'))
+          .addOption('warning', text('colorWarningOption'))
+          .addOption('failure', text('colorFailureOption'))
+          .addOption('danger', text('colorDangerOption'))
+          .addOption('bug', text('colorBugOption'))
+          .addOption('example', text('colorExampleOption'))
+          .addOption('quote', text('colorQuoteOption'))
+          .setValue(this.plugin.settings.subnoteColor)
+          .onChange(async (value) => {
+            this.plugin.settings.subnoteColor = value as SubnoteColor;
             await this.plugin.saveSettings();
           }),
       );

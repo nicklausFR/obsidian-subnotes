@@ -17,6 +17,7 @@ Current version: **0.2.5**
 - Rename the visible sub-note title without renaming the file.
 - Use Markdown formatting in visible titles.
 - Fold or unfold sub-notes, with a configurable default state.
+- Use the same configurable callout color for file and virtual sub-notes.
 - Store file sub-notes beside the parent note or in a fixed folder.
 - Optionally add a configurable filename indicator, as prefix or suffix.
 - Copy Markdown with embedded sub-note references resolved to raw content.
@@ -45,7 +46,7 @@ Virtual sub-note:
 
 - Interface language: English or French.
 - Creation and storage: default type, location, fixed folder, filename indicator.
-- Display: default fold state, maximum embed height, overflow fade.
+- Display: default fold state, shared color, maximum embed height, overflow fade.
 - Copy and cleanup: resolve sub-note contents on copy.
 - Advanced CSS: custom CSS mode disables the built-in height and fade controls.
 

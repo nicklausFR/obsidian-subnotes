@@ -333,6 +333,10 @@ export default class SubnotesPlugin extends Plugin {
       'obsidian-subnotes-custom-css-enabled',
       this.settings.customCssEnabled,
     );
+    document.body.style.setProperty(
+      '--obsidian-subnotes-callout-color',
+      `var(--callout-${this.settings.subnoteColor})`,
+    );
 
     if (this.settings.customCssEnabled) {
       document.body.style.removeProperty('--obsidian-subnotes-max-height');
@@ -1306,10 +1310,21 @@ export default class SubnotesPlugin extends Plugin {
   }
 
   private serializeInlineEditorMarkdown(root: HTMLElement): string {
-    return Array.from(root.childNodes)
-      .map((node) => this.serializeMarkdownBlock(node))
-      .filter((markdown) => markdown.trim().length > 0)
-      .join('\n\n')
+    const blocks = Array.from(root.childNodes)
+      .map((node) => ({
+        markdown: this.serializeMarkdownBlock(node),
+        paragraph: node instanceof HTMLElement && node.tagName.toLowerCase() === 'p',
+      }))
+      .filter((block) => block.markdown.trim().length > 0);
+
+    return blocks
+      .map((block, index) => {
+        if (index === 0) return block.markdown;
+        const previous = blocks[index - 1];
+        const separator = previous.paragraph && block.paragraph ? '\n' : '\n\n';
+        return `${separator}${block.markdown}`;
+      })
+      .join('')
       .replace(/\n{3,}/g, '\n\n')
       .trimEnd();
   }
@@ -1756,16 +1771,17 @@ export default class SubnotesPlugin extends Plugin {
     await this.ensureFolder(this.virtualTempFolder);
     const tempPath = this.getVirtualTempPath(data.title, id);
     const existing = this.app.vault.getAbstractFileByPath(tempPath);
+    const editorContent = this.compactVirtualEditorContent(data.content);
     let tempFile: TFile;
 
     if (existing instanceof TFile) {
       tempFile = existing;
-      await this.app.vault.modify(tempFile, data.content);
+      await this.app.vault.modify(tempFile, editorContent);
     } else if (existing) {
       new Notice(this.t('unableCreateTempEditorNotice', { path: tempPath }));
       return;
     } else {
-      tempFile = await this.app.vault.create(tempPath, data.content);
+      tempFile = await this.app.vault.create(tempPath, editorContent);
     }
 
     this.virtualTempEditors.set(tempFile.path, {
@@ -1789,6 +1805,27 @@ export default class SubnotesPlugin extends Plugin {
     const safeTitle = plainTitle.slice(0, 80);
     const suffix = id.replace(/[^a-z0-9-]/gi, '').slice(-12) || Date.now().toString(36);
     return normalizePath(`${this.virtualTempFolder}/${safeTitle} (${suffix}).md`);
+  }
+
+  private compactVirtualEditorContent(content: string): string {
+    const normalized = content.replace(/\r\n?/g, '\n');
+    const lines = normalized.split('\n');
+    if (lines.length < 3) return normalized;
+
+    const blankIndexes = lines
+      .map((line, index) => (line.trim() ? -1 : index))
+      .filter((index) => index >= 0);
+    if (blankIndexes.length / lines.length < 0.25) return normalized;
+
+    const mostlyAlternating = blankIndexes.every((index) => {
+      const previous = lines[index - 1]?.trim();
+      const next = lines[index + 1]?.trim();
+      return !!previous && !!next;
+    });
+
+    return mostlyAlternating
+      ? lines.filter((line) => line.trim()).join('\n')
+      : normalized;
   }
 
   private async syncVirtualTempEditor(tempFile: TFile): Promise<void> {
