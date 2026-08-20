@@ -1,4 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
+import { InterfaceLanguage, translate } from './i18n';
 import SubnotesPlugin from './main';
 
 export type SubnoteFolderMode = 'same-folder' | 'fixed-folder';
@@ -7,6 +8,7 @@ export type DefaultFoldState = 'expanded' | 'collapsed';
 export type SubnoteStorageType = 'virtual' | 'file';
 
 export interface SubnotesSettings {
+  interfaceLanguage: InterfaceLanguage;
   folderMode: SubnoteFolderMode;
   fixedFolder: string;
   indicatorEnabled: boolean;
@@ -16,11 +18,14 @@ export interface SubnotesSettings {
   defaultStorageType: SubnoteStorageType;
   maxEmbedHeight: number;
   overflowFadeSize: number;
+  customCssEnabled: boolean;
+  customCss: string;
   resolveSubnotesOnCopy: boolean;
   knownSubnotes: string[];
 }
 
 export const DEFAULT_SETTINGS: SubnotesSettings = {
+  interfaceLanguage: 'en',
   folderMode: 'same-folder',
   fixedFolder: 'Files',
   indicatorEnabled: true,
@@ -30,6 +35,8 @@ export const DEFAULT_SETTINGS: SubnotesSettings = {
   defaultStorageType: 'file',
   maxEmbedHeight: 150,
   overflowFadeSize: 34,
+  customCssEnabled: false,
+  customCss: '',
   resolveSubnotesOnCopy: true,
   knownSubnotes: [],
 };
@@ -41,15 +48,36 @@ export class SubnotesSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this;
+    const text = (key: Parameters<typeof translate>[1]): string =>
+      translate(this.plugin.settings.interfaceLanguage, key);
     containerEl.empty();
 
+    this.addSection(text('settingsSectionInterface'));
+
     new Setting(containerEl)
-      .setName('Sub-note location')
-      .setDesc('Store sub-notes beside the parent note or in a fixed folder.')
+      .setName(text('interfaceLanguageName'))
+      .setDesc(text('interfaceLanguageDesc'))
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('same-folder', 'Same folder as parent note')
-          .addOption('fixed-folder', 'Fixed folder')
+          .addOption('en', translate('en', 'languageName'))
+          .addOption('fr', translate('fr', 'languageName'))
+          .setValue(this.plugin.settings.interfaceLanguage)
+          .onChange(async (value) => {
+            this.plugin.settings.interfaceLanguage = value as InterfaceLanguage;
+            await this.plugin.saveSettings();
+            this.display();
+          }),
+      );
+
+    this.addSection(text('settingsSectionCreation'));
+
+    new Setting(containerEl)
+      .setName(text('subnoteLocationName'))
+      .setDesc(text('subnoteLocationDesc'))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('same-folder', text('sameFolderOption'))
+          .addOption('fixed-folder', text('fixedFolderOption'))
           .setValue(this.plugin.settings.folderMode)
           .onChange(async (value) => {
             this.plugin.settings.folderMode = value as SubnoteFolderMode;
@@ -60,8 +88,8 @@ export class SubnotesSettingTab extends PluginSettingTab {
 
     if (this.plugin.settings.folderMode === 'fixed-folder') {
       new Setting(containerEl)
-        .setName('Fixed folder')
-        .setDesc('Path relative to the vault root, for example Files/Subnotes.')
+        .setName(text('fixedFolderName'))
+        .setDesc(text('fixedFolderDesc'))
         .addText((text) =>
           text
             .setPlaceholder('Files')
@@ -74,8 +102,8 @@ export class SubnotesSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName('Filename indicator')
-      .setDesc('Add an indicator such as [sub] to sub-note filenames.')
+      .setName(text('filenameIndicatorName'))
+      .setDesc(text('filenameIndicatorDesc'))
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.indicatorEnabled)
@@ -88,7 +116,7 @@ export class SubnotesSettingTab extends PluginSettingTab {
 
     if (this.plugin.settings.indicatorEnabled) {
       new Setting(containerEl)
-        .setName('Indicator')
+        .setName(text('indicatorName'))
         .addText((text) =>
           text
             .setPlaceholder('[sub]')
@@ -100,11 +128,11 @@ export class SubnotesSettingTab extends PluginSettingTab {
         );
 
       new Setting(containerEl)
-        .setName('Indicator position')
+        .setName(text('indicatorPositionName'))
         .addDropdown((dropdown) =>
           dropdown
-            .addOption('prefix', 'Prefix')
-            .addOption('suffix', 'Suffix')
+            .addOption('prefix', text('prefixOption'))
+            .addOption('suffix', text('suffixOption'))
             .setValue(this.plugin.settings.indicatorPosition)
             .onChange(async (value) => {
               this.plugin.settings.indicatorPosition = value as IndicatorPosition;
@@ -114,12 +142,12 @@ export class SubnotesSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName('Default sub-note type')
-      .setDesc('Preselected type when creating a new sub-note. The type is still asked at each creation.')
+      .setName(text('defaultSubnoteTypeName'))
+      .setDesc(text('defaultSubnoteTypeDesc'))
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('virtual', 'Virtual')
-          .addOption('file', 'File')
+          .addOption('virtual', text('virtualOption'))
+          .addOption('file', text('fileOption'))
           .setValue(this.plugin.settings.defaultStorageType)
           .onChange(async (value) => {
             this.plugin.settings.defaultStorageType = value as SubnoteStorageType;
@@ -127,13 +155,15 @@ export class SubnotesSettingTab extends PluginSettingTab {
           }),
       );
 
+    this.addSection(text('settingsSectionDisplay'));
+
     new Setting(containerEl)
-      .setName('Default fold state')
-      .setDesc('Initial state each time the parent note is opened.')
+      .setName(text('defaultFoldStateName'))
+      .setDesc(text('defaultFoldStateDesc'))
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('expanded', 'Expanded')
-          .addOption('collapsed', 'Collapsed')
+          .addOption('expanded', text('expandedOption'))
+          .addOption('collapsed', text('collapsedOption'))
           .setValue(this.plugin.settings.defaultFoldState)
           .onChange(async (value) => {
             this.plugin.settings.defaultFoldState = value as DefaultFoldState;
@@ -141,9 +171,41 @@ export class SubnotesSettingTab extends PluginSettingTab {
           }),
       );
 
+    if (!this.plugin.settings.customCssEnabled) {
+      new Setting(containerEl)
+        .setName(text('maxEmbedHeightName'))
+        .setDesc(text('maxEmbedHeightDesc'))
+        .addSlider((slider) =>
+          slider
+            .setLimits(60, 800, 10)
+            .setValue(this.plugin.settings.maxEmbedHeight)
+            .setDynamicTooltip()
+            .onChange(async (value) => {
+              this.plugin.settings.maxEmbedHeight = value;
+              await this.plugin.saveSettings();
+            }),
+        );
+
+      new Setting(containerEl)
+        .setName(text('overflowFadeHeightName'))
+        .setDesc(text('overflowFadeHeightDesc'))
+        .addSlider((slider) =>
+          slider
+            .setLimits(10, 100, 2)
+            .setValue(this.plugin.settings.overflowFadeSize)
+            .setDynamicTooltip()
+            .onChange(async (value) => {
+              this.plugin.settings.overflowFadeSize = value;
+              await this.plugin.saveSettings();
+            }),
+        );
+    }
+
+    this.addSection(text('settingsSectionCopy'));
+
     new Setting(containerEl)
-      .setName('Copy sub-note contents')
-      .setDesc('When copying Markdown, replace sub-note embeds with their raw Markdown content.')
+      .setName(text('copySubnoteContentsName'))
+      .setDesc(text('copySubnoteContentsDesc'))
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.resolveSubnotesOnCopy)
@@ -153,32 +215,44 @@ export class SubnotesSettingTab extends PluginSettingTab {
           }),
       );
 
+    this.addSection(text('settingsSectionAdvanced'));
+
     new Setting(containerEl)
-      .setName('Maximum embed height')
-      .setDesc('Maximum visible height before vertical scrolling.')
-      .addSlider((slider) =>
-        slider
-          .setLimits(60, 800, 10)
-          .setValue(this.plugin.settings.maxEmbedHeight)
-          .setDynamicTooltip()
+      .setName(text('customCssName'))
+      .setDesc(text('customCssDesc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.customCssEnabled)
           .onChange(async (value) => {
-            this.plugin.settings.maxEmbedHeight = value;
+            this.plugin.settings.customCssEnabled = value;
             await this.plugin.saveSettings();
+            this.display();
           }),
       );
 
-    new Setting(containerEl)
-      .setName('Overflow fade height')
-      .setDesc('Height of the fade that indicates hidden content below a sub-note.')
-      .addSlider((slider) =>
-        slider
-          .setLimits(10, 100, 2)
-          .setValue(this.plugin.settings.overflowFadeSize)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.overflowFadeSize = value;
-            await this.plugin.saveSettings();
-          }),
-      );
+    if (this.plugin.settings.customCssEnabled) {
+      new Setting(containerEl)
+        .setName(text('customCssCodeName'))
+        .setDesc(text('customCssCodeDesc'))
+        .addTextArea((textarea) => {
+          textarea
+            .setPlaceholder(text('customCssPlaceholder'))
+            .setValue(this.plugin.settings.customCss)
+            .onChange(async (value) => {
+              this.plugin.settings.customCss = value;
+              await this.plugin.saveSettings();
+            });
+
+          textarea.inputEl.rows = 10;
+          textarea.inputEl.addClass('obsidian-subnotes-custom-css-input');
+        });
+    }
+  }
+
+  private addSection(text: string): void {
+    this.containerEl.createEl('h3', {
+      text,
+      cls: 'obsidian-subnotes-settings-heading',
+    });
   }
 }

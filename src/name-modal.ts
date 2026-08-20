@@ -1,4 +1,5 @@
 import { App, Modal, Setting } from 'obsidian';
+import { InterfaceLanguage, translate } from './i18n';
 import type { SubnoteStorageType } from './settings';
 
 export class SubnoteNameModal extends Modal {
@@ -7,6 +8,7 @@ export class SubnoteNameModal extends Modal {
 
   constructor(
     app: App,
+    private readonly language: InterfaceLanguage,
     defaultStorageType: SubnoteStorageType,
     private readonly onSubmit: (name: string, storageType: SubnoteStorageType) => void,
   ) {
@@ -16,13 +18,16 @@ export class SubnoteNameModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    contentEl.createEl('h3', { text: 'New sub-note' });
+    const text = (key: Parameters<typeof translate>[1]): string =>
+      translate(this.language, key);
+
+    contentEl.createEl('h3', { text: text('newSubnoteHeading') });
 
     new Setting(contentEl)
-      .setName('Name')
+      .setName(text('nameLabel'))
       .addText((text) => {
         text
-          .setPlaceholder('Sub-note name')
+          .setPlaceholder(translate(this.language, 'subnoteNamePlaceholder'))
           .onChange((value) => {
             this.value = value;
           });
@@ -38,11 +43,11 @@ export class SubnoteNameModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName('Type')
+      .setName(text('typeLabel'))
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('virtual', 'Virtual')
-          .addOption('file', 'File')
+          .addOption('virtual', text('virtualOption'))
+          .addOption('file', text('fileOption'))
           .setValue(this.storageType)
           .onChange((value) => {
             this.storageType = value as SubnoteStorageType;
@@ -51,7 +56,7 @@ export class SubnoteNameModal extends Modal {
 
     new Setting(contentEl).addButton((button) =>
       button
-        .setButtonText('Create')
+        .setButtonText(text('createButton'))
         .setCta()
         .onClick(() => this.submit()),
     );

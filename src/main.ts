@@ -23,15 +23,17 @@ import {
   SubnotesSettings,
   SubnotesSettingTab,
 } from './settings';
+import { InterfaceLanguage, TranslationKey, translate } from './i18n';
 
 class SubnotePickerModal extends FuzzySuggestModal<TFile> {
   constructor(
     app: App,
+    private readonly language: InterfaceLanguage,
     private readonly files: TFile[],
     private readonly onChoose: (file: TFile) => void,
   ) {
     super(app);
-    this.setPlaceholder('Choose a sub-note…');
+    this.setPlaceholder(translate(this.language, 'chooseSubnotePlaceholder'));
   }
 
   getItems(): TFile[] {
@@ -52,6 +54,7 @@ class SubnoteTitleModal extends Modal {
 
   constructor(
     app: App,
+    private readonly language: InterfaceLanguage,
     initialValue: string,
     private readonly onSubmit: (title: string) => void,
   ) {
@@ -61,11 +64,13 @@ class SubnoteTitleModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    contentEl.createEl('h3', { text: 'Sub-note display title' });
+    const text = (key: TranslationKey): string => translate(this.language, key);
+
+    contentEl.createEl('h3', { text: text('titleModalHeading') });
 
     new Setting(contentEl)
-      .setName('Title')
-      .setDesc('Markdown formatting is supported, for example: # Heading, ## Heading, **bold**, *italic*, or ~~strikethrough~~. Plain titles keep the current appearance.')
+      .setName(text('titleName'))
+      .setDesc(text('titleDesc'))
       .addText((text) => {
         text.setValue(this.value).onChange((value) => {
           this.value = value;
@@ -86,7 +91,7 @@ class SubnoteTitleModal extends Modal {
 
     new Setting(contentEl).addButton((button) =>
       button
-        .setButtonText('Save')
+        .setButtonText(text('saveButton'))
         .setCta()
         .onClick(() => this.submit()),
     );
@@ -108,6 +113,7 @@ class DeleteSubnoteModal extends Modal {
 
   constructor(
     app: App,
+    private readonly language: InterfaceLanguage,
     private readonly file: TFile,
     private readonly onDecision: (deleteFile: boolean) => void,
   ) {
@@ -116,18 +122,21 @@ class DeleteSubnoteModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    contentEl.createEl('h3', { text: 'Sub-note removed' });
+    const text = (key: TranslationKey, replacements?: Record<string, string>): string =>
+      translate(this.language, key, replacements);
+
+    contentEl.createEl('h3', { text: text('deleteModalHeading') });
     contentEl.createEl('p', {
-      text: `The embed for "${this.file.basename}" was removed. Delete the file too?`,
+      text: text('deleteModalText', { name: this.file.basename }),
     });
 
     new Setting(contentEl)
       .addButton((button) =>
-        button.setButtonText('Keep file').onClick(() => this.finish(false)),
+        button.setButtonText(text('keepFileButton')).onClick(() => this.finish(false)),
       )
       .addButton((button) =>
         button
-          .setButtonText('Move to trash')
+          .setButtonText(text('moveToTrashButton'))
           .setWarning()
           .onClick(() => this.finish(true)),
       );
@@ -152,6 +161,7 @@ export default class SubnotesPlugin extends Plugin {
   private referenceTrackingReady = false;
   private pendingDeletionPrompts = new Set<string>();
   private markdownContentCache = new Map<string, string>();
+  private customStyleEl: HTMLStyleElement | null = null;
   private virtualTempEditors = new Map<
     string,
     { parentPath: string; id: string; opening: boolean }
@@ -164,7 +174,7 @@ export default class SubnotesPlugin extends Plugin {
 
     this.addCommand({
       id: 'new-subnote',
-      name: 'New sub-note',
+      name: this.t('commandNewSubnote'),
       editorCallback: (editor, view) => {
         this.promptAndCreateSubnote(editor, view);
       },
@@ -172,7 +182,7 @@ export default class SubnotesPlugin extends Plugin {
 
     this.addCommand({
       id: 'include-subnote',
-      name: 'Include a sub-note',
+      name: this.t('commandIncludeSubnote'),
       editorCallback: (editor, view) => {
         this.promptAndIncludeSubnote(editor, view);
       },
@@ -181,12 +191,12 @@ export default class SubnotesPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on('editor-menu', (menu, editor, view) => {
         menu.addItem((item) => {
-          item.setTitle('Sub-notes').setIcon('files');
+          item.setTitle(this.t('subnotesMenu')).setIcon('files');
 
           const submenuItem = item as unknown as { setSubmenu?: () => Menu };
           if (typeof submenuItem.setSubmenu !== 'function') {
             item
-              .setTitle('New sub-note')
+              .setTitle(this.t('commandNewSubnote'))
               .setIcon('file-plus-2')
               .onClick(() => this.promptAndCreateSubnote(editor, view));
             return;
@@ -196,14 +206,14 @@ export default class SubnotesPlugin extends Plugin {
 
           submenu.addItem((subItem) =>
             subItem
-              .setTitle('New sub-note')
+              .setTitle(this.t('commandNewSubnote'))
               .setIcon('file-plus-2')
               .onClick(() => this.promptAndCreateSubnote(editor, view)),
           );
 
           submenu.addItem((subItem) =>
             subItem
-              .setTitle('Include a sub-note')
+              .setTitle(this.t('commandIncludeSubnote'))
               .setIcon('file-input')
               .onClick(() => this.promptAndIncludeSubnote(editor, view)),
           );
@@ -231,6 +241,15 @@ export default class SubnotesPlugin extends Plugin {
       this.app.workspace.containerEl,
       'click',
       (event: MouseEvent) => this.handleSubnoteEditClick(event),
+      { capture: true },
+    );
+
+    // A simple click in the rendered body switches that sub-note to an
+    // in-place Markdown editor. The pencil keeps opening the normal editor.
+    this.registerDomEvent(
+      this.app.workspace.containerEl,
+      'click',
+      (event: MouseEvent) => this.handleInlineSubnoteEditClick(event),
       { capture: true },
     );
 
@@ -292,6 +311,9 @@ export default class SubnotesPlugin extends Plugin {
   onunload(): void {
     document.body.style.removeProperty('--obsidian-subnotes-max-height');
     document.body.style.removeProperty('--obsidian-subnotes-overflow-fade-size');
+    document.body.classList.remove('obsidian-subnotes-custom-css-enabled');
+    this.customStyleEl?.remove();
+    this.customStyleEl = null;
     void this.cleanupAllVirtualTempEditors();
   }
 
@@ -307,6 +329,21 @@ export default class SubnotesPlugin extends Plugin {
   }
 
   private applyCssSettings(): void {
+    document.body.classList.toggle(
+      'obsidian-subnotes-custom-css-enabled',
+      this.settings.customCssEnabled,
+    );
+
+    if (this.settings.customCssEnabled) {
+      document.body.style.removeProperty('--obsidian-subnotes-max-height');
+      document.body.style.removeProperty('--obsidian-subnotes-overflow-fade-size');
+      this.ensureCustomStyleElement().textContent = this.settings.customCss;
+      return;
+    }
+
+    this.customStyleEl?.remove();
+    this.customStyleEl = null;
+
     const maxHeight = Math.max(60, Math.round(this.settings.maxEmbedHeight));
     const fadeSize = Math.max(10, Math.min(100, Math.round(this.settings.overflowFadeSize)));
     document.body.style.setProperty(
@@ -319,9 +356,25 @@ export default class SubnotesPlugin extends Plugin {
     );
   }
 
+  private ensureCustomStyleElement(): HTMLStyleElement {
+    if (this.customStyleEl?.isConnected) return this.customStyleEl;
+
+    this.customStyleEl = document.createElement('style');
+    this.customStyleEl.id = 'obsidian-subnotes-custom-css';
+    document.head.appendChild(this.customStyleEl);
+    return this.customStyleEl;
+  }
+
+  private t(
+    key: TranslationKey,
+    replacements: Record<string, string> = {},
+  ): string {
+    return translate(this.settings.interfaceLanguage, key, replacements);
+  }
+
   private promptAndCreateSubnote(editor: Editor, view: MarkdownFileInfo): void {
     if (!view.file) {
-      new Notice('No parent note is open.');
+      new Notice(this.t('noParentNotice'));
       return;
     }
 
@@ -332,6 +385,7 @@ export default class SubnotesPlugin extends Plugin {
 
     new SubnoteNameModal(
       this.app,
+      this.settings.interfaceLanguage,
       this.settings.defaultStorageType,
       (name, storageType) => {
         void this.createSubnote(
@@ -349,7 +403,7 @@ export default class SubnotesPlugin extends Plugin {
 
   private promptAndIncludeSubnote(editor: Editor, view: MarkdownFileInfo): void {
     if (!view.file) {
-      new Notice('No parent note is open.');
+      new Notice(this.t('noParentNotice'));
       return;
     }
 
@@ -357,11 +411,11 @@ export default class SubnotesPlugin extends Plugin {
     const files = this.getAvailableSubnotes(parentFile);
 
     if (files.length === 0) {
-      new Notice('No sub-note found.');
+      new Notice(this.t('noSubnoteFoundNotice'));
       return;
     }
 
-    new SubnotePickerModal(this.app, files, (file) => {
+    new SubnotePickerModal(this.app, this.settings.interfaceLanguage, files, (file) => {
       void this.includeExistingSubnote(editor, file);
     }).open();
   }
@@ -378,6 +432,7 @@ export default class SubnotesPlugin extends Plugin {
     if (storageType === 'virtual') {
       this.createVirtualSubnote(
         editor,
+        parentFile,
         requestedName,
         selectedContent,
         selectionFrom,
@@ -407,7 +462,7 @@ export default class SubnotesPlugin extends Plugin {
     const displayTitle = requestedName.trim();
     const baseName = this.cleanFilename(this.filenameFromDisplayTitle(displayTitle));
     if (!displayTitle || !baseName) {
-      new Notice('Invalid sub-note name.');
+      new Notice(this.t('invalidSubnoteNameNotice'));
       return;
     }
 
@@ -420,7 +475,7 @@ export default class SubnotesPlugin extends Plugin {
     );
 
     if (this.app.vault.getAbstractFileByPath(filePath)) {
-      new Notice(`A file already exists: ${filePath}`);
+      new Notice(this.t('fileExistsNotice', { path: filePath }));
       return;
     }
 
@@ -441,6 +496,7 @@ export default class SubnotesPlugin extends Plugin {
 
   private createVirtualSubnote(
     editor: Editor,
+    parentFile: TFile,
     requestedName: string,
     selectedContent: string,
     selectionFrom: { line: number; ch: number },
@@ -448,7 +504,7 @@ export default class SubnotesPlugin extends Plugin {
   ): void {
     const title = requestedName.trim();
     if (!title) {
-      new Notice('Invalid sub-note name.');
+      new Notice(this.t('invalidSubnoteNameNotice'));
       return;
     }
 
@@ -459,6 +515,8 @@ export default class SubnotesPlugin extends Plugin {
       selectionFrom,
       selectionTo,
     );
+
+    void this.openVirtualSubnoteEditor(parentFile, id);
   }
 
   private async includeExistingSubnote(editor: Editor, subnote: TFile): Promise<void> {
@@ -483,9 +541,9 @@ export default class SubnotesPlugin extends Plugin {
     const quotedContent = normalizedContent
       ? normalizedContent
           .split('\n')
-          .map((line) => (line ? `> ${line}` : '>'))
+          .map((line) => `> ${line}`)
           .join('\n')
-      : '>';
+      : '> ';
 
     return `> [!subnote-virtual-${id}]${foldMarker} ${title}\n${quotedContent}`;
   }
@@ -607,7 +665,7 @@ export default class SubnotesPlugin extends Plugin {
     if (this.pendingDeletionPrompts.has(file.path)) return;
     this.pendingDeletionPrompts.add(file.path);
 
-    new DeleteSubnoteModal(this.app, file, (deleteFile) => {
+    new DeleteSubnoteModal(this.app, this.settings.interfaceLanguage, file, (deleteFile) => {
       this.pendingDeletionPrompts.delete(file.path);
       if (!deleteFile) return;
 
@@ -615,10 +673,10 @@ export default class SubnotesPlugin extends Plugin {
         try {
           await this.app.fileManager.trashFile(file);
           await this.removeKnownSubnote(file.path);
-          new Notice(`Sub-note moved to trash: ${file.basename}`);
+          new Notice(this.t('subnoteMovedToTrashNotice', { name: file.basename }));
         } catch (error) {
           console.error('Obsidian Subnotes: failed to trash sub-note', error);
-          new Notice(`Unable to delete sub-note: ${file.basename}`);
+          new Notice(this.t('unableDeleteSubnoteNotice', { name: file.basename }));
         }
       })();
     }).open();
@@ -871,7 +929,7 @@ export default class SubnotesPlugin extends Plugin {
       toggle = document.createElement('button');
       toggle.className = 'obsidian-subnotes-fold-toggle';
       toggle.setAttribute('type', 'button');
-      toggle.setAttribute('aria-label', 'Collapse or expand sub-note');
+      toggle.setAttribute('aria-label', this.t('collapseExpandLabel'));
       if (title === embed) toggle.classList.add('is-fallback');
       const titleInner = title.querySelector<HTMLElement>(':scope > .callout-title-inner');
       if (titleInner) {
@@ -917,7 +975,7 @@ export default class SubnotesPlugin extends Plugin {
       toggle = document.createElement('button');
       toggle.className = 'obsidian-subnotes-fold-toggle';
       toggle.setAttribute('type', 'button');
-      toggle.setAttribute('aria-label', 'Collapse or expand sub-note');
+      toggle.setAttribute('aria-label', this.t('collapseExpandLabel'));
 
       const titleInner = title.querySelector<HTMLElement>(':scope > .callout-title-inner');
       if (titleInner) {
@@ -983,8 +1041,8 @@ export default class SubnotesPlugin extends Plugin {
     icon.classList.add('obsidian-subnotes-edit-icon');
     icon.setAttribute('role', 'button');
     icon.setAttribute('tabindex', '0');
-    icon.setAttribute('aria-label', 'Edit');
-    icon.setAttribute('title', 'Edit');
+    icon.setAttribute('aria-label', this.t('editLabel'));
+    icon.setAttribute('title', this.t('editLabel'));
   }
 
   private ensureEditControl(embed: HTMLElement, callout: HTMLElement): void {
@@ -995,8 +1053,8 @@ export default class SubnotesPlugin extends Plugin {
     icon.classList.add('obsidian-subnotes-edit-icon');
     icon.setAttribute('role', 'button');
     icon.setAttribute('tabindex', '0');
-    icon.setAttribute('aria-label', 'Edit');
-    icon.setAttribute('title', 'Edit');
+    icon.setAttribute('aria-label', this.t('editLabel'));
+    icon.setAttribute('title', this.t('editLabel'));
   }
 
   private handleSubnoteEditClick(event: MouseEvent): void {
@@ -1042,6 +1100,287 @@ export default class SubnotesPlugin extends Plugin {
     if (file) void this.openSubnote(file, effectiveSourcePath);
   }
 
+  private handleInlineSubnoteEditClick(event: MouseEvent): void {
+    if (event.button !== 0) return;
+
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    if (
+      target.closest(
+        '.obsidian-subnotes-inline-editor, .obsidian-subnotes-fold-toggle, .obsidian-subnotes-edit-icon, button, input, textarea, select, option, a, .internal-link, .external-link',
+      )
+    ) {
+      return;
+    }
+
+    const callout = target.closest<HTMLElement>('.obsidian-subnotes-callout');
+    if (!callout || this.isFoldCollapsedForCallout(callout)) return;
+
+    if (this.isVirtualSubnoteCallout(callout)) {
+      const content = callout.querySelector<HTMLElement>(':scope > .callout-content');
+      if (!content || !content.contains(target)) return;
+
+      const id = this.getVirtualSubnoteId(callout);
+      if (!id) return;
+
+      const sourcePath =
+        callout.dataset.subnotesSourcePath ??
+        this.app.workspace.getActiveFile()?.path ??
+        '';
+      const parentFile = this.app.vault.getAbstractFileByPath(sourcePath);
+      if (!(parentFile instanceof TFile)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      void this.startVirtualInlineEditor(content, parentFile, id);
+      return;
+    }
+
+    const embed = callout.querySelector<HTMLElement>('.internal-embed[src]');
+    if (!embed) return;
+
+    const content = target.closest<HTMLElement>('.markdown-embed-content');
+    if (!content || !embed.contains(content)) return;
+
+    const linkPath = embed.getAttribute('src');
+    if (!linkPath) return;
+
+    const sourcePath =
+      callout.dataset.subnotesSourcePath ??
+      embed.dataset.subnotesSourcePath ??
+      this.app.workspace.getActiveFile()?.path ??
+      '';
+    const file = this.resolveLinkedFile(linkPath, sourcePath);
+    if (!file) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    void this.startFileInlineEditor(content, file);
+  }
+
+  private isFoldCollapsedForCallout(callout: HTMLElement): boolean {
+    const content =
+      callout.querySelector<HTMLElement>(':scope > .callout-content') ??
+      callout.querySelector<HTMLElement>('.markdown-embed-content');
+    return !!content && this.isFoldCollapsed(callout, content);
+  }
+
+  private async startFileInlineEditor(
+    contentEl: HTMLElement,
+    file: TFile,
+  ): Promise<void> {
+    const openView = this.getOpenMarkdownView(file.path);
+    const markdown = openView
+      ? openView.editor.getValue()
+      : await this.app.vault.cachedRead(file);
+
+    await this.startInlineEditor(contentEl, markdown, file.path, async (nextValue) => {
+      const currentView = this.getOpenMarkdownView(file.path);
+      if (currentView) {
+        const editor = currentView.editor;
+        const current = editor.getValue();
+        if (current === nextValue) return;
+        editor.replaceRange(
+          nextValue,
+          editor.offsetToPos(0),
+          editor.offsetToPos(current.length),
+        );
+        return;
+      }
+
+      const current = await this.app.vault.cachedRead(file);
+      if (current !== nextValue) await this.app.vault.modify(file, nextValue);
+    });
+  }
+
+  private async startVirtualInlineEditor(
+    contentEl: HTMLElement,
+    parentFile: TFile,
+    id: string,
+  ): Promise<void> {
+    const data = await this.getVirtualSubnoteData(parentFile, id);
+    if (!data) {
+      new Notice(this.t('virtualSubnoteNotFoundNotice'));
+      return;
+    }
+
+    await this.startInlineEditor(contentEl, data.content, parentFile.path, async (nextValue) => {
+      const current = await this.getVirtualSubnoteData(parentFile, id);
+      if (!current || current.content === nextValue) return;
+      await this.updateVirtualSubnote(parentFile, id, current.title, nextValue);
+    });
+  }
+
+  private async startInlineEditor(
+    contentEl: HTMLElement,
+    initialValue: string,
+    sourcePath: string,
+    save: (value: string) => Promise<void>,
+  ): Promise<void> {
+    if (contentEl.dataset.subnotesInlineEditing === 'true') {
+      contentEl.querySelector<HTMLElement>('.obsidian-subnotes-inline-editor')?.focus();
+      return;
+    }
+
+    contentEl.dataset.subnotesInlineEditing = 'true';
+    contentEl.classList.add('obsidian-subnotes-inline-editing');
+
+    const editor = document.createElement('div');
+    editor.className = 'obsidian-subnotes-inline-editor';
+    editor.contentEditable = 'true';
+    editor.setAttribute('role', 'textbox');
+    editor.setAttribute('aria-multiline', 'true');
+    editor.setAttribute('aria-label', this.t('editSubnoteMarkdownLabel'));
+    editor.spellcheck = true;
+    await MarkdownRenderer.render(this.app, initialValue, editor, sourcePath, this);
+
+    const configuredHeight = this.settings.customCssEnabled
+      ? contentEl.clientHeight
+      : this.settings.maxEmbedHeight;
+    const visibleHeight = Math.max(
+      80,
+      Math.min(configuredHeight || 240, contentEl.clientHeight || configuredHeight || 240),
+    );
+    editor.style.height = `${visibleHeight}px`;
+    contentEl.appendChild(editor);
+
+    let closing = false;
+    let dirty = false;
+    const close = async (commit: boolean): Promise<void> => {
+      if (closing) return;
+      closing = true;
+
+      const nextValue = this.serializeInlineEditorMarkdown(editor);
+      editor.remove();
+      delete contentEl.dataset.subnotesInlineEditing;
+      contentEl.classList.remove('obsidian-subnotes-inline-editing');
+      this.ensureOverflowFade(contentEl);
+
+      if (!commit || !dirty || nextValue === initialValue) return;
+
+      try {
+        await save(nextValue);
+      } catch (error) {
+        console.error('Obsidian Subnotes: unable to save sub-note inline edit', error);
+        new Notice(this.t('unableSaveInlineEditNotice'));
+      }
+    };
+
+    editor.addEventListener('input', () => {
+      dirty = true;
+    });
+
+    editor.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        void close(false);
+        return;
+      }
+
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        editor.blur();
+      }
+    });
+
+    editor.addEventListener('blur', () => {
+      void close(true);
+    }, { once: true });
+
+    window.requestAnimationFrame(() => {
+      editor.focus();
+      this.moveCursorToEnd(editor);
+    });
+  }
+
+  private moveCursorToEnd(element: HTMLElement): void {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  private serializeInlineEditorMarkdown(root: HTMLElement): string {
+    return Array.from(root.childNodes)
+      .map((node) => this.serializeMarkdownBlock(node))
+      .filter((markdown) => markdown.trim().length > 0)
+      .join('\n\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd();
+  }
+
+  private serializeMarkdownBlock(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+    if (!(node instanceof HTMLElement)) return '';
+
+    if (node.matches('.heading-collapse-indicator, .collapse-indicator')) return '';
+
+    const tag = node.tagName.toLowerCase();
+    if (/^h[1-6]$/u.test(tag)) {
+      return `${'#'.repeat(Number(tag[1]))} ${this.serializeMarkdownInlineChildren(node).trim()}`;
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      return Array.from(node.children)
+        .filter((child): child is HTMLElement => child instanceof HTMLElement)
+        .map((child, index) => {
+          const prefix = tag === 'ol' ? `${index + 1}. ` : '- ';
+          return `${prefix}${this.serializeMarkdownInlineChildren(child).trim()}`;
+        })
+        .join('\n');
+    }
+
+    if (tag === 'blockquote') {
+      return this.serializeMarkdownInlineChildren(node)
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n');
+    }
+
+    if (tag === 'pre') {
+      return `\`\`\`\n${node.textContent?.trimEnd() ?? ''}\n\`\`\``;
+    }
+
+    if (tag === 'br') return '\n';
+    return this.serializeMarkdownInlineChildren(node).trimEnd();
+  }
+
+  private serializeMarkdownInlineChildren(element: HTMLElement): string {
+    return Array.from(element.childNodes)
+      .map((node) => this.serializeMarkdownInline(node))
+      .join('');
+  }
+
+  private serializeMarkdownInline(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+    if (!(node instanceof HTMLElement)) return '';
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+
+    const content = this.serializeMarkdownInlineChildren(node);
+    if (tag === 'strong' || tag === 'b') return `**${content}**`;
+    if (tag === 'em' || tag === 'i') return `*${content}*`;
+    if (tag === 's' || tag === 'del') return `~~${content}~~`;
+    if (tag === 'code') return `\`${node.textContent ?? ''}\``;
+
+    if (tag === 'a') {
+      const target = node.dataset.href ?? node.getAttribute('href') ?? '';
+      const label = content || node.textContent || target;
+      if (!target || target === label) return label;
+      return node.classList.contains('internal-link')
+        ? `[[${target}${label !== target ? `|${label}` : ''}]]`
+        : `[${label}](${target})`;
+    }
+
+    return content;
+  }
+
   private hideNativeOpenLinkControl(embed: HTMLElement): void {
     const controls = embed.querySelectorAll<HTMLElement>(
       '.markdown-embed-link, [aria-label="Open link"], [aria-label="Ouvrir le lien"], [title="Open link"], [title="Ouvrir le lien"]',
@@ -1075,7 +1414,7 @@ export default class SubnotesPlugin extends Plugin {
     toggle.empty();
     setIcon(toggle, collapsed ? 'chevron-right' : 'chevron-down');
     toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    toggle.setAttribute('title', collapsed ? 'Expand' : 'Collapse');
+    toggle.setAttribute('title', collapsed ? this.t('expandLabel') : this.t('collapseLabel'));
   }
 
   private handleCopy(event: ClipboardEvent): void {
@@ -1172,7 +1511,7 @@ export default class SubnotesPlugin extends Plugin {
 
     menu.addItem((item) =>
       item
-        .setTitle('Edit')
+        .setTitle(this.t('editLabel'))
         .setIcon('pencil')
         .onClick(() => void this.openSubnote(file, sourcePath)),
     );
@@ -1181,7 +1520,7 @@ export default class SubnotesPlugin extends Plugin {
     if (parentFile instanceof TFile) {
       menu.addItem((item) =>
         item
-          .setTitle('Change title')
+          .setTitle(this.t('changeTitleLabel'))
           .setIcon('text-cursor-input')
           .onClick(() => void this.promptVisibleTitle(parentFile, linkPath)),
       );
@@ -1191,7 +1530,7 @@ export default class SubnotesPlugin extends Plugin {
       const collapsed = this.isFoldCollapsed(fold.host, fold.content);
       menu.addItem((item) =>
         item
-          .setTitle(collapsed ? 'Expand' : 'Collapse')
+          .setTitle(collapsed ? this.t('expandLabel') : this.t('collapseLabel'))
           .setIcon(collapsed ? 'chevron-down' : 'chevron-up')
           .onClick(() => {
             this.setFoldCollapsed(fold.host, fold.content, !collapsed);
@@ -1225,14 +1564,14 @@ export default class SubnotesPlugin extends Plugin {
     const menu = new Menu();
     menu.addItem((item) =>
       item
-        .setTitle('Edit')
+        .setTitle(this.t('editLabel'))
         .setIcon('pencil')
         .onClick(() => void this.openVirtualSubnoteEditor(parentFile, id)),
     );
 
     menu.addItem((item) =>
       item
-        .setTitle('Change title')
+        .setTitle(this.t('changeTitleLabel'))
         .setIcon('text-cursor-input')
         .onClick(() => void this.promptVirtualTitle(parentFile, id)),
     );
@@ -1241,7 +1580,7 @@ export default class SubnotesPlugin extends Plugin {
       const collapsed = this.isFoldCollapsed(callout, content);
       menu.addItem((item) =>
         item
-          .setTitle(collapsed ? 'Expand' : 'Collapse')
+          .setTitle(collapsed ? this.t('expandLabel') : this.t('collapseLabel'))
           .setIcon(collapsed ? 'chevron-down' : 'chevron-up')
           .onClick(() => {
             this.setFoldCollapsed(callout, content, !collapsed);
@@ -1256,11 +1595,11 @@ export default class SubnotesPlugin extends Plugin {
   private async promptVirtualTitle(parentFile: TFile, id: string): Promise<void> {
     const data = await this.getVirtualSubnoteData(parentFile, id);
     if (!data) {
-      new Notice('Virtual sub-note not found.');
+      new Notice(this.t('virtualSubnoteNotFoundNotice'));
       return;
     }
 
-    new SubnoteTitleModal(this.app, data.title, (title) => {
+    new SubnoteTitleModal(this.app, this.settings.interfaceLanguage, data.title, (title) => {
       void this.updateVirtualSubnote(parentFile, id, title, data.content);
     }).open();
   }
@@ -1344,7 +1683,7 @@ export default class SubnotesPlugin extends Plugin {
 
   private async promptVisibleTitle(parentFile: TFile, rawLink: string): Promise<void> {
     const currentTitle = await this.getVisibleTitle(parentFile, rawLink);
-    new SubnoteTitleModal(this.app, currentTitle, (title) => {
+    new SubnoteTitleModal(this.app, this.settings.interfaceLanguage, currentTitle, (title) => {
       void this.setVisibleTitle(parentFile, rawLink, title);
     }).open();
   }
@@ -1400,7 +1739,7 @@ export default class SubnotesPlugin extends Plugin {
   private async openVirtualSubnoteEditor(parentFile: TFile, id: string): Promise<void> {
     const data = await this.getVirtualSubnoteData(parentFile, id);
     if (!data) {
-      new Notice('Virtual sub-note not found.');
+      new Notice(this.t('virtualSubnoteNotFoundNotice'));
       return;
     }
 
@@ -1423,7 +1762,7 @@ export default class SubnotesPlugin extends Plugin {
       tempFile = existing;
       await this.app.vault.modify(tempFile, data.content);
     } else if (existing) {
-      new Notice(`Unable to create temporary editor: ${tempPath}`);
+      new Notice(this.t('unableCreateTempEditorNotice', { path: tempPath }));
       return;
     } else {
       tempFile = await this.app.vault.create(tempPath, data.content);
@@ -1444,7 +1783,9 @@ export default class SubnotesPlugin extends Plugin {
   }
 
   private getVirtualTempPath(title: string, id: string): string {
-    const plainTitle = this.cleanFilename(this.filenameFromDisplayTitle(title)) || 'Virtual sub-note';
+    const plainTitle =
+      this.cleanFilename(this.filenameFromDisplayTitle(title)) ||
+      this.t('virtualSubnoteFallbackName');
     const safeTitle = plainTitle.slice(0, 80);
     const suffix = id.replace(/[^a-z0-9-]/gi, '').slice(-12) || Date.now().toString(36);
     return normalizePath(`${this.virtualTempFolder}/${safeTitle} (${suffix}).md`);
@@ -1556,7 +1897,7 @@ export default class SubnotesPlugin extends Plugin {
       const match = pattern.exec(source);
 
       if (!match) {
-        new Notice('Virtual sub-note not found.');
+        new Notice(this.t('virtualSubnoteNotFoundNotice'));
         return;
       }
 
@@ -1626,11 +1967,11 @@ export default class SubnotesPlugin extends Plugin {
 
   private quoteVirtualSubnoteContent(content: string): string {
     const normalized = content.replace(/\r\n?/g, '\n');
-    if (!normalized) return '>';
+    if (!normalized) return '> ';
 
     return normalized
       .split('\n')
-      .map((line) => (line ? `> ${line}` : '>'))
+      .map((line) => `> ${line}`)
       .join('\n');
   }
 

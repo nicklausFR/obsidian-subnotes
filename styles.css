@@ -66,7 +66,10 @@
   overflow: visible !important;
 }
 
-.obsidian-subnotes-callout .obsidian-subnotes-embed .markdown-embed-content {
+body:not(.obsidian-subnotes-custom-css-enabled)
+  .obsidian-subnotes-callout
+  .obsidian-subnotes-embed
+  .markdown-embed-content {
   max-height: var(--obsidian-subnotes-max-height, 150px) !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -78,7 +81,9 @@
   --callout-icon: lucide-pencil;
 }
 
-.obsidian-subnotes-virtual-callout > .callout-content {
+body:not(.obsidian-subnotes-custom-css-enabled)
+  .obsidian-subnotes-virtual-callout
+  > .callout-content {
   max-height: var(--obsidian-subnotes-max-height, 150px);
   overflow-y: auto;
   overflow-x: hidden;
@@ -136,7 +141,8 @@
 
 /* When a sub-note is taller than its viewport, fade the lower edge to make
    the hidden continuation obvious. The fade disappears at the end. */
-.obsidian-subnotes-overflowing:not(.obsidian-subnotes-at-bottom) {
+body:not(.obsidian-subnotes-custom-css-enabled)
+  .obsidian-subnotes-overflowing:not(.obsidian-subnotes-at-bottom) {
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0,
@@ -151,4 +157,58 @@
   );
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
+}
+
+/* Simple click editing: temporarily replace the rendered sub-note body with
+   an in-place rendered editor. Escape cancels; blur saves. */
+.obsidian-subnotes-inline-editing {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  overflow: auto !important;
+}
+
+.obsidian-subnotes-inline-editing > :not(.obsidian-subnotes-inline-editor) {
+  display: none !important;
+}
+
+.obsidian-subnotes-inline-editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 80px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  overflow: auto;
+  background: transparent;
+  color: var(--text-normal);
+  font: inherit;
+  line-height: var(--line-height-normal, 1.5);
+  tab-size: 4;
+  caret-color: var(--text-normal);
+}
+
+.obsidian-subnotes-inline-editor:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.obsidian-subnotes-inline-editor > :first-child {
+  margin-top: 0;
+}
+
+.obsidian-subnotes-inline-editor > :last-child {
+  margin-bottom: 0;
+}
+
+.obsidian-subnotes-settings-heading {
+  margin-top: 1.6em;
+}
+
+.obsidian-subnotes-custom-css-input {
+  width: 100%;
+  min-height: 12em;
+  font-family: var(--font-monospace);
 }
