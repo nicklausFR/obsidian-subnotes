@@ -4,6 +4,7 @@ import SubnotesPlugin from './main';
 export type SubnoteFolderMode = 'same-folder' | 'fixed-folder';
 export type IndicatorPosition = 'prefix' | 'suffix';
 export type DefaultFoldState = 'expanded' | 'collapsed';
+export type SubnoteStorageType = 'virtual' | 'file';
 
 export interface SubnotesSettings {
   folderMode: SubnoteFolderMode;
@@ -12,7 +13,9 @@ export interface SubnotesSettings {
   indicator: string;
   indicatorPosition: IndicatorPosition;
   defaultFoldState: DefaultFoldState;
+  defaultStorageType: SubnoteStorageType;
   maxEmbedHeight: number;
+  overflowFadeSize: number;
   resolveSubnotesOnCopy: boolean;
   knownSubnotes: string[];
 }
@@ -24,7 +27,9 @@ export const DEFAULT_SETTINGS: SubnotesSettings = {
   indicator: '[sub]',
   indicatorPosition: 'prefix',
   defaultFoldState: 'expanded',
+  defaultStorageType: 'file',
   maxEmbedHeight: 150,
+  overflowFadeSize: 34,
   resolveSubnotesOnCopy: true,
   knownSubnotes: [],
 };
@@ -109,6 +114,20 @@ export class SubnotesSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
+      .setName('Default sub-note type')
+      .setDesc('Preselected type when creating a new sub-note. The type is still asked at each creation.')
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('virtual', 'Virtual')
+          .addOption('file', 'File')
+          .setValue(this.plugin.settings.defaultStorageType)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultStorageType = value as SubnoteStorageType;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName('Default fold state')
       .setDesc('Initial state each time the parent note is opened.')
       .addDropdown((dropdown) =>
@@ -144,6 +163,20 @@ export class SubnotesSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.settings.maxEmbedHeight = value;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('Overflow fade height')
+      .setDesc('Height of the fade that indicates hidden content below a sub-note.')
+      .addSlider((slider) =>
+        slider
+          .setLimits(10, 100, 2)
+          .setValue(this.plugin.settings.overflowFadeSize)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.overflowFadeSize = value;
             await this.plugin.saveSettings();
           }),
       );

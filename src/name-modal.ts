@@ -1,13 +1,17 @@
 import { App, Modal, Setting } from 'obsidian';
+import type { SubnoteStorageType } from './settings';
 
 export class SubnoteNameModal extends Modal {
   private value = '';
+  private storageType: SubnoteStorageType;
 
   constructor(
     app: App,
-    private readonly onSubmit: (name: string) => void,
+    defaultStorageType: SubnoteStorageType,
+    private readonly onSubmit: (name: string, storageType: SubnoteStorageType) => void,
   ) {
     super(app);
+    this.storageType = defaultStorageType;
   }
 
   onOpen(): void {
@@ -33,6 +37,18 @@ export class SubnoteNameModal extends Modal {
         window.setTimeout(() => text.inputEl.focus(), 0);
       });
 
+    new Setting(contentEl)
+      .setName('Type')
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('virtual', 'Virtual')
+          .addOption('file', 'File')
+          .setValue(this.storageType)
+          .onChange((value) => {
+            this.storageType = value as SubnoteStorageType;
+          }),
+      );
+
     new Setting(contentEl).addButton((button) =>
       button
         .setButtonText('Create')
@@ -50,6 +66,6 @@ export class SubnoteNameModal extends Modal {
     if (!name) return;
 
     this.close();
-    this.onSubmit(name);
+    this.onSubmit(name, this.storageType);
   }
 }

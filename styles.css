@@ -71,3 +71,84 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
+
+/* Virtual sub-notes use their own callout type but keep the same note look. */
+.callout[data-callout^="subnote-virtual-"] {
+  --callout-color: var(--color-blue-rgb);
+  --callout-icon: lucide-pencil;
+}
+
+.obsidian-subnotes-virtual-callout > .callout-content {
+  max-height: var(--obsidian-subnotes-max-height, 150px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Markdown-formatted sub-note titles. Plain titles keep Obsidian's native rendering. */
+.obsidian-subnotes-title-markdown > :first-child:last-child {
+  margin: 0;
+}
+
+.obsidian-subnotes-title-markdown > h1,
+.obsidian-subnotes-title-markdown > h2,
+.obsidian-subnotes-title-markdown > h3,
+.obsidian-subnotes-title-markdown > h4,
+.obsidian-subnotes-title-markdown > h5,
+.obsidian-subnotes-title-markdown > h6,
+.obsidian-subnotes-title-markdown > p {
+  margin-block: 0;
+}
+
+/* The outer sub-note callout owns the visible title. Do not repeat the
+   physical file basename (for example "[sub]test1") inside the embed. */
+.obsidian-subnotes-callout .obsidian-subnotes-embed .inline-title,
+.obsidian-subnotes-callout .obsidian-subnotes-embed .markdown-embed-title {
+  display: none !important;
+}
+
+/* The sub-note card already provides the visual boundary. Remove Obsidian's
+   inner callout-content guide line for both file and virtual sub-notes. */
+.obsidian-subnotes-callout > .callout-content {
+  border-inline-start: 0 !important;
+  border-left: 0 !important;
+}
+
+/* A physical sub-note is rendered through Obsidian's markdown embed layer,
+   unlike a virtual sub-note. Remove that embed's native left guide so both
+   kinds of sub-notes have the same visual content boundary. */
+.obsidian-subnotes-callout .obsidian-subnotes-embed {
+  border-inline-start: 0 !important;
+  border-left: 0 !important;
+}
+
+/* Physical sub-notes pass through Obsidian's markdown-embed wrapper. Its
+   native inline spacing remains even when the guide border is hidden. Remove
+   that extra left spacing so physical and virtual sub-note bodies align. */
+.obsidian-subnotes-callout .obsidian-subnotes-embed,
+.obsidian-subnotes-callout .obsidian-subnotes-embed > .markdown-embed-content,
+.obsidian-subnotes-callout .obsidian-subnotes-embed .markdown-preview-view,
+.obsidian-subnotes-callout .obsidian-subnotes-embed .markdown-preview-sizer {
+  padding-inline-start: 0 !important;
+  padding-left: 0 !important;
+  margin-inline-start: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* When a sub-note is taller than its viewport, fade the lower edge to make
+   the hidden continuation obvious. The fade disappears at the end. */
+.obsidian-subnotes-overflowing:not(.obsidian-subnotes-at-bottom) {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--obsidian-subnotes-overflow-fade-size)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--obsidian-subnotes-overflow-fade-size)),
+    transparent 100%
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}

@@ -13,7 +13,7 @@
     "plugin",
     "subnotes"
   ],
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "devDependencies": {
     "@types/node": "^22.15.17",
     "esbuild": "0.25.5",
