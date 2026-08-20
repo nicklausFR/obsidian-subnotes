@@ -2,7 +2,7 @@
 
 Obsidian plugin for creating and managing lightweight sub-notes inside parent notes.
 
-Current version: **0.3.0**
+Current version: **0.3.1**
 
 ## Features
 
@@ -48,7 +48,7 @@ Virtual sub-note:
 - Creation and storage: default type, location, fixed folder, filename indicator.
 - Display: default fold state, shared color, maximum embed height, overflow fade.
 - Copy and cleanup: resolve sub-note contents on copy.
-- Advanced CSS: custom CSS mode disables the built-in height and fade controls.
+- Advanced CSS: external CSS mode disables the built-in height and fade controls for styling through Obsidian CSS snippets or the plugin stylesheet.
 
 ## Installation
 
@@ -78,7 +78,7 @@ npm run build
 
 ## Compatibility
 
-- Obsidian minimum version: `1.0.0`
+- Obsidian minimum version: `1.7.2`
 - Desktop-only: no
 
 ## License

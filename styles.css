@@ -228,9 +228,3 @@ body:not(.obsidian-subnotes-custom-css-enabled)
 .obsidian-subnotes-settings-heading {
   margin-top: 1.6em;
 }
-
-.obsidian-subnotes-custom-css-input {
-  width: 100%;
-  min-height: 12em;
-  font-family: var(--font-monospace);
-}

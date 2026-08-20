@@ -21,7 +21,7 @@ export class SubnoteNameModal extends Modal {
     const text = (key: Parameters<typeof translate>[1]): string =>
       translate(this.language, key);
 
-    contentEl.createEl('h3', { text: text('newSubnoteHeading') });
+    new Setting(contentEl).setName(text('newSubnoteHeading')).setHeading();
 
     new Setting(contentEl)
       .setName(text('nameLabel'))

@@ -50,8 +50,8 @@ const TRANSLATIONS = {
     maxEmbedHeightDesc: 'Maximum visible height before vertical scrolling.',
     overflowFadeHeightName: 'Overflow fade height',
     overflowFadeHeightDesc: 'Height of the fade that indicates hidden content below a sub-note.',
-    customCssName: 'Custom CSS',
-    customCssDesc: 'Use your own sub-note CSS. When enabled, built-in height and fade controls are disabled.',
+    customCssName: 'External CSS mode',
+    customCssDesc: 'Disable built-in height and fade controls so sub-notes can be styled from an Obsidian CSS snippet or the plugin stylesheet.',
     customCssCodeName: 'CSS rules',
     customCssCodeDesc: 'Targets can include .obsidian-subnotes-callout, .obsidian-subnotes-embed, and .obsidian-subnotes-virtual-callout.',
     customCssPlaceholder: '.obsidian-subnotes-callout {\n  /* custom styles */\n}',
@@ -138,8 +138,8 @@ const TRANSLATIONS = {
     maxEmbedHeightDesc: 'Hauteur visible maximale avant defilement vertical.',
     overflowFadeHeightName: 'Hauteur du fondu',
     overflowFadeHeightDesc: 'Hauteur du fondu qui indique qu une sub-note continue plus bas.',
-    customCssName: 'CSS personnalise',
-    customCssDesc: 'Utiliser votre propre CSS pour les sub-notes. Quand il est actif, les reglages de hauteur et de fondu sont desactives.',
+    customCssName: 'Mode CSS externe',
+    customCssDesc: 'Desactiver les reglages integres de hauteur et de fondu pour styliser les sub-notes depuis un snippet CSS Obsidian ou la feuille de style du plugin.',
     customCssCodeName: 'Regles CSS',
     customCssCodeDesc: 'Les cibles peuvent inclure .obsidian-subnotes-callout, .obsidian-subnotes-embed et .obsidian-subnotes-virtual-callout.',
     customCssPlaceholder: '.obsidian-subnotes-callout {\n  /* styles personnalises */\n}',
@@ -186,7 +186,7 @@ export function translate(
   key: TranslationKey,
   replacements: Record<string, string> = {},
 ): string {
-  let value: string = TRANSLATIONS[language][key] ?? TRANSLATIONS.en[key];
+  let value: string = TRANSLATIONS[language][key];
 
   for (const [name, replacement] of Object.entries(replacements)) {
     value = value.split(`{{${name}}}`).join(replacement);

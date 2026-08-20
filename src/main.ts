@@ -1,5 +1,6 @@
 import {
   App,
+  Component,
   Editor,
   FuzzySuggestModal,
   MarkdownFileInfo,
@@ -66,7 +67,7 @@ class SubnoteTitleModal extends Modal {
     const { contentEl } = this;
     const text = (key: TranslationKey): string => translate(this.language, key);
 
-    contentEl.createEl('h3', { text: text('titleModalHeading') });
+    new Setting(contentEl).setName(text('titleModalHeading')).setHeading();
 
     new Setting(contentEl)
       .setName(text('titleName'))
@@ -125,7 +126,7 @@ class DeleteSubnoteModal extends Modal {
     const text = (key: TranslationKey, replacements?: Record<string, string>): string =>
       translate(this.language, key, replacements);
 
-    contentEl.createEl('h3', { text: text('deleteModalHeading') });
+    new Setting(contentEl).setName(text('deleteModalHeading')).setHeading();
     contentEl.createEl('p', {
       text: text('deleteModalText', { name: this.file.basename }),
     });
@@ -161,7 +162,6 @@ export default class SubnotesPlugin extends Plugin {
   private referenceTrackingReady = false;
   private pendingDeletionPrompts = new Set<string>();
   private markdownContentCache = new Map<string, string>();
-  private customStyleEl: HTMLStyleElement | null = null;
   private virtualTempEditors = new Map<
     string,
     { parentPath: string; id: string; opening: boolean }
@@ -312,8 +312,6 @@ export default class SubnotesPlugin extends Plugin {
     document.body.style.removeProperty('--obsidian-subnotes-max-height');
     document.body.style.removeProperty('--obsidian-subnotes-overflow-fade-size');
     document.body.classList.remove('obsidian-subnotes-custom-css-enabled');
-    this.customStyleEl?.remove();
-    this.customStyleEl = null;
     void this.cleanupAllVirtualTempEditors();
   }
 
@@ -341,12 +339,8 @@ export default class SubnotesPlugin extends Plugin {
     if (this.settings.customCssEnabled) {
       document.body.style.removeProperty('--obsidian-subnotes-max-height');
       document.body.style.removeProperty('--obsidian-subnotes-overflow-fade-size');
-      this.ensureCustomStyleElement().textContent = this.settings.customCss;
       return;
     }
-
-    this.customStyleEl?.remove();
-    this.customStyleEl = null;
 
     const maxHeight = Math.max(60, Math.round(this.settings.maxEmbedHeight));
     const fadeSize = Math.max(10, Math.min(100, Math.round(this.settings.overflowFadeSize)));
@@ -358,15 +352,6 @@ export default class SubnotesPlugin extends Plugin {
       '--obsidian-subnotes-overflow-fade-size',
       `${fadeSize}px`,
     );
-  }
-
-  private ensureCustomStyleElement(): HTMLStyleElement {
-    if (this.customStyleEl?.isConnected) return this.customStyleEl;
-
-    this.customStyleEl = document.createElement('style');
-    this.customStyleEl.id = 'obsidian-subnotes-custom-css';
-    document.head.appendChild(this.customStyleEl);
-    return this.customStyleEl;
   }
 
   private t(
@@ -930,8 +915,9 @@ export default class SubnotesPlugin extends Plugin {
       ':scope > .obsidian-subnotes-fold-toggle',
     );
     if (!toggle) {
-      toggle = document.createElement('button');
-      toggle.className = 'obsidian-subnotes-fold-toggle';
+      toggle = title.createEl('button', {
+        cls: 'obsidian-subnotes-fold-toggle',
+      });
       toggle.setAttribute('type', 'button');
       toggle.setAttribute('aria-label', this.t('collapseExpandLabel'));
       if (title === embed) toggle.classList.add('is-fallback');
@@ -976,8 +962,9 @@ export default class SubnotesPlugin extends Plugin {
       ':scope > .obsidian-subnotes-fold-toggle',
     );
     if (!toggle) {
-      toggle = document.createElement('button');
-      toggle.className = 'obsidian-subnotes-fold-toggle';
+      toggle = title.createEl('button', {
+        cls: 'obsidian-subnotes-fold-toggle',
+      });
       toggle.setAttribute('type', 'button');
       toggle.setAttribute('aria-label', this.t('collapseExpandLabel'));
 
@@ -1230,14 +1217,17 @@ export default class SubnotesPlugin extends Plugin {
     contentEl.dataset.subnotesInlineEditing = 'true';
     contentEl.classList.add('obsidian-subnotes-inline-editing');
 
-    const editor = document.createElement('div');
-    editor.className = 'obsidian-subnotes-inline-editor';
+    const editor = contentEl.createDiv({
+      cls: 'obsidian-subnotes-inline-editor',
+    });
     editor.contentEditable = 'true';
     editor.setAttribute('role', 'textbox');
     editor.setAttribute('aria-multiline', 'true');
     editor.setAttribute('aria-label', this.t('editSubnoteMarkdownLabel'));
     editor.spellcheck = true;
-    await MarkdownRenderer.render(this.app, initialValue, editor, sourcePath, this);
+    const renderComponent = new Component();
+    renderComponent.load();
+    await MarkdownRenderer.render(this.app, initialValue, editor, sourcePath, renderComponent);
 
     const configuredHeight = this.settings.customCssEnabled
       ? contentEl.clientHeight
@@ -1256,6 +1246,7 @@ export default class SubnotesPlugin extends Plugin {
       closing = true;
 
       const nextValue = this.serializeInlineEditorMarkdown(editor);
+      renderComponent.unload();
       editor.remove();
       delete contentEl.dataset.subnotesInlineEditing;
       contentEl.classList.remove('obsidian-subnotes-inline-editing');
@@ -1654,8 +1645,11 @@ export default class SubnotesPlugin extends Plugin {
 
     if (previousRaw === raw) return;
 
-    const rendered = document.createElement('div');
-    await MarkdownRenderer.render(this.app, raw, rendered, sourcePath, this);
+    const rendered = createDiv();
+    const renderComponent = new Component();
+    renderComponent.load();
+    await MarkdownRenderer.render(this.app, raw, rendered, sourcePath, renderComponent);
+    renderComponent.unload();
 
     // The title source remains untouched in Markdown. Only its rendered DOM is
     // replaced, so editing always gets the original Markdown code back.

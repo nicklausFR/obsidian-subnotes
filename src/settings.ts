@@ -269,29 +269,12 @@ export class SubnotesSettingTab extends PluginSettingTab {
           }),
       );
 
-    if (this.plugin.settings.customCssEnabled) {
-      new Setting(containerEl)
-        .setName(text('customCssCodeName'))
-        .setDesc(text('customCssCodeDesc'))
-        .addTextArea((textarea) => {
-          textarea
-            .setPlaceholder(text('customCssPlaceholder'))
-            .setValue(this.plugin.settings.customCss)
-            .onChange(async (value) => {
-              this.plugin.settings.customCss = value;
-              await this.plugin.saveSettings();
-            });
-
-          textarea.inputEl.rows = 10;
-          textarea.inputEl.addClass('obsidian-subnotes-custom-css-input');
-        });
-    }
   }
 
   private addSection(text: string): void {
-    this.containerEl.createEl('h3', {
-      text,
-      cls: 'obsidian-subnotes-settings-heading',
-    });
+    new Setting(this.containerEl)
+      .setName(text)
+      .setHeading()
+      .settingEl.addClass('obsidian-subnotes-settings-heading');
   }
 }
