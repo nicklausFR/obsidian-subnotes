@@ -55,7 +55,7 @@ Virtual sub-note:
 Build the plugin, then copy these files into:
 
 ```text
-<Vault>/.obsidian/plugins/obsidian-subnotes/
+<Vault>/.obsidian/plugins/subnotes/
 ```
 
 Required files:
