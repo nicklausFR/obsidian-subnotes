@@ -1,8 +1,8 @@
-# Obsidian Subnotes
+# Subnotes
 
 Obsidian plugin for creating and managing lightweight sub-notes inside parent notes.
 
-Current version: **0.2.5**
+Current version: **0.3.0**
 
 ## Features
 
@@ -66,7 +66,7 @@ manifest.json
 styles.css
 ```
 
-Reload Obsidian community plugins, then enable **Obsidian Subnotes**.
+Reload Obsidian community plugins, then enable **Subnotes**.
 
 ## Development
 
