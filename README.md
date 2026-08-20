@@ -2,7 +2,7 @@
 
 Obsidian plugin for creating and managing lightweight sub-notes inside parent notes.
 
-Current version: **0.3.1**
+Current version: **0.3.2**
 
 ## Features
 

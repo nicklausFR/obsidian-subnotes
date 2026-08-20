@@ -188,7 +188,8 @@ export function translate(
 ): string {
   let value: string = TRANSLATIONS[language][key];
 
-  for (const [name, replacement] of Object.entries(replacements)) {
+  for (const name of Object.keys(replacements)) {
+    const replacement = replacements[name] ?? '';
     value = value.split(`{{${name}}}`).join(replacement);
   }
 

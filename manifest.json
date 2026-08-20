@@ -1,7 +1,7 @@
 {
   "id": "subnotes",
   "name": "Subnotes",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "minAppVersion": "1.7.2",
   "description": "Create and manage lightweight sub-notes embedded in parent notes.",
   "author": "nicklausFR",

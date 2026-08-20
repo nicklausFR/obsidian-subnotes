@@ -26,6 +26,26 @@ import {
 } from './settings';
 import { InterfaceLanguage, TranslationKey, translate } from './i18n';
 
+type ObsidianNode = Node & {
+  instanceOf<T>(type: { new (): T }): this is T;
+};
+
+function hasObsidianInstanceOf(value: EventTarget | Node | null): value is ObsidianNode {
+  return (
+    value !== null &&
+    typeof (value as { instanceOf?: unknown }).instanceOf === 'function'
+  );
+}
+
+function isHTMLElement(value: EventTarget | Node | null): value is HTMLElement {
+  return hasObsidianInstanceOf(value) && value.instanceOf(HTMLElement);
+}
+
+function closestHTMLElement(element: Element, selector: string): HTMLElement | null {
+  const match = element.closest(selector);
+  return isHTMLElement(match) ? match : null;
+}
+
 class SubnotePickerModal extends FuzzySuggestModal<TFile> {
   constructor(
     app: App,
@@ -663,7 +683,7 @@ export default class SubnotesPlugin extends Plugin {
           await this.app.fileManager.trashFile(file);
           await this.removeKnownSubnote(file.path);
           new Notice(this.t('subnoteMovedToTrashNotice', { name: file.basename }));
-        } catch (error) {
+        } catch (error: unknown) {
           console.error('Obsidian Subnotes: failed to trash sub-note', error);
           new Notice(this.t('unableDeleteSubnoteNotice', { name: file.basename }));
         }
@@ -743,7 +763,7 @@ export default class SubnotesPlugin extends Plugin {
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of Array.from(mutation.addedNodes)) {
-          if (node instanceof HTMLElement) this.decorateRenderedTree(node);
+          if (isHTMLElement(node)) this.decorateRenderedTree(node);
         }
       }
     });
@@ -848,7 +868,7 @@ export default class SubnotesPlugin extends Plugin {
     embed.classList.add('obsidian-subnotes-embed');
     if (sourcePath) embed.dataset.subnotesSourcePath = sourcePath;
 
-    const callout = embed.closest('.callout') as HTMLElement | null;
+    const callout = closestHTMLElement(embed, '.callout');
     callout?.classList.add('obsidian-subnotes-callout');
     if (callout && sourcePath) callout.dataset.subnotesSourcePath = sourcePath;
 
@@ -872,7 +892,7 @@ export default class SubnotesPlugin extends Plugin {
 
   private getFoldElements(
     embed: HTMLElement,
-    callout: HTMLElement | null = embed.closest('.callout') as HTMLElement | null,
+    callout: HTMLElement | null = closestHTMLElement(embed, '.callout'),
   ): { host: HTMLElement; content: HTMLElement; title: HTMLElement } | null {
     if (callout) {
       const content = callout.querySelector<HTMLElement>(':scope > .callout-content');
@@ -1095,7 +1115,7 @@ export default class SubnotesPlugin extends Plugin {
     if (event.button !== 0) return;
 
     const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
+    if (!isHTMLElement(target)) return;
 
     if (
       target.closest(
@@ -1256,7 +1276,7 @@ export default class SubnotesPlugin extends Plugin {
 
       try {
         await save(nextValue);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Obsidian Subnotes: unable to save sub-note inline edit', error);
         new Notice(this.t('unableSaveInlineEditNotice'));
       }
@@ -1304,7 +1324,7 @@ export default class SubnotesPlugin extends Plugin {
     const blocks = Array.from(root.childNodes)
       .map((node) => ({
         markdown: this.serializeMarkdownBlock(node),
-        paragraph: node instanceof HTMLElement && node.tagName.toLowerCase() === 'p',
+        paragraph: isHTMLElement(node) && node.tagName.toLowerCase() === 'p',
       }))
       .filter((block) => block.markdown.trim().length > 0);
 
@@ -1322,7 +1342,7 @@ export default class SubnotesPlugin extends Plugin {
 
   private serializeMarkdownBlock(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
-    if (!(node instanceof HTMLElement)) return '';
+    if (!isHTMLElement(node)) return '';
 
     if (node.matches('.heading-collapse-indicator, .collapse-indicator')) return '';
 
@@ -1333,7 +1353,7 @@ export default class SubnotesPlugin extends Plugin {
 
     if (tag === 'ul' || tag === 'ol') {
       return Array.from(node.children)
-        .filter((child): child is HTMLElement => child instanceof HTMLElement)
+        .filter((child): child is HTMLElement => isHTMLElement(child))
         .map((child, index) => {
           const prefix = tag === 'ol' ? `${index + 1}. ` : '- ';
           return `${prefix}${this.serializeMarkdownInlineChildren(child).trim()}`;
@@ -1364,7 +1384,7 @@ export default class SubnotesPlugin extends Plugin {
 
   private serializeMarkdownInline(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
-    if (!(node instanceof HTMLElement)) return '';
+    if (!isHTMLElement(node)) return '';
 
     const tag = node.tagName.toLowerCase();
     if (tag === 'br') return '\n';

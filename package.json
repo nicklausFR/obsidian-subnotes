@@ -1,6 +1,6 @@
 {
   "name": "subnotes",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Obsidian plugin for creating and managing sub-notes.",
   "main": "main.js",
   "type": "module",
