@@ -525,7 +525,14 @@ export default class SubnotesPlugin extends Plugin {
       selectionTo,
     );
 
-    void this.openVirtualSubnoteEditor(parentFile, id);
+    // The editor transaction may not be visible through the workspace/vault yet,
+    // especially when the selection replaces the whole document. Reuse the
+    // snapshot captured before the modal opened instead of immediately reading
+    // the freshly inserted callout back from the parent note.
+    void this.openVirtualSubnoteEditor(parentFile, id, {
+      title,
+      content: selectedContent,
+    });
   }
 
   private async includeExistingSubnote(editor: Editor, subnote: TFile): Promise<void> {
@@ -1765,8 +1772,12 @@ export default class SubnotesPlugin extends Plugin {
     return !!fileA && !!fileB && fileA.path === fileB.path;
   }
 
-  private async openVirtualSubnoteEditor(parentFile: TFile, id: string): Promise<void> {
-    const data = await this.getVirtualSubnoteData(parentFile, id);
+  private async openVirtualSubnoteEditor(
+    parentFile: TFile,
+    id: string,
+    initialData?: { title: string; content: string },
+  ): Promise<void> {
+    const data = initialData ?? await this.getVirtualSubnoteData(parentFile, id);
     if (!data) {
       new Notice(this.t('virtualSubnoteNotFoundNotice'));
       return;
@@ -2159,9 +2170,15 @@ export default class SubnotesPlugin extends Plugin {
     from: { line: number; ch: number },
     to: { line: number; ch: number },
   ): void {
-    const startLine = editor.getLine(from.line);
-    const before = from.ch === 0 && startLine.length === 0 ? '' : '\n';
-    const after = '\n\n';
+    const document = editor.getValue();
+    const startOffset = editor.posToOffset(from);
+    const endOffset = editor.posToOffset(to);
+    const contentBefore = document.slice(0, startOffset);
+    const contentAfter = document.slice(endOffset);
+    const before = contentBefore && !contentBefore.endsWith('\n') ? '\n' : '';
+    const after = contentAfter
+      ? contentAfter.startsWith('\n') ? '\n' : '\n\n'
+      : '\n';
     editor.replaceRange(`${before}${block}${after}`, from, to);
   }
 
