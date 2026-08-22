@@ -2,7 +2,7 @@
 
 Obsidian plugin for creating and managing lightweight sub-notes inside parent notes.
 
-Current version: **0.3.2**
+Current version: **0.3.3**
 
 ## Features
 
@@ -10,6 +10,7 @@ Current version: **0.3.2**
 - Choose between two sub-note types:
   - **File**: a normal Markdown file embedded in the parent note.
   - **Virtual**: Markdown stored directly inside the parent note.
+- Choose a display title and an auto-completed vault path when creating file sub-notes.
 - Include existing Markdown notes as sub-notes through a searchable picker.
 - Edit sub-notes from their rendered card:
   - click the body for inline rendered editing;

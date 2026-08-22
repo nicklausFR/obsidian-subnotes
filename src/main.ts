@@ -92,12 +92,11 @@ class SubnoteTitleModal extends Modal {
     new Setting(contentEl)
       .setName(text('titleName'))
       .setDesc(text('titleDesc'))
-      .addText((text) => {
-        text.setValue(this.value).onChange((value) => {
+      .addText((input) => {
+        input.setValue(this.value).onChange((value) => {
           this.value = value;
         });
-
-        text.inputEl.addEventListener('keydown', (event) => {
+        input.inputEl.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
             this.submit();
@@ -105,17 +104,16 @@ class SubnoteTitleModal extends Modal {
         });
 
         window.setTimeout(() => {
-          text.inputEl.focus();
-          text.inputEl.select();
+          input.inputEl.focus();
+          input.inputEl.select();
         }, 0);
-      });
-
-    new Setting(contentEl).addButton((button) =>
-      button
-        .setButtonText(text('saveButton'))
-        .setCta()
-        .onClick(() => this.submit()),
-    );
+      })
+      .addButton((button) =>
+        button
+          .setButtonText(text('saveButton'))
+          .setCta()
+          .onClick(() => this.submit()),
+      );
   }
 
   onClose(): void {
@@ -396,12 +394,16 @@ export default class SubnotesPlugin extends Plugin {
       this.app,
       this.settings.interfaceLanguage,
       this.settings.defaultStorageType,
-      (name, storageType) => {
+      (title) => this.getAvailableSubnoteFilename(parentFile, title, true),
+      (filename) => this.getAvailableSubnoteFilename(parentFile, filename, false),
+      () => this.getSubnoteFilenameSuggestions(),
+      (title, storageType, filename) => {
         void this.createSubnote(
           editor,
           parentFile,
-          name,
+          title,
           storageType,
+          filename,
           selectedContent,
           selectionFrom,
           selectionTo,
@@ -434,6 +436,7 @@ export default class SubnotesPlugin extends Plugin {
     parentFile: TFile,
     requestedName: string,
     storageType: SubnoteStorageType,
+    requestedFilename: string | undefined,
     selectedContent: string,
     selectionFrom: { line: number; ch: number },
     selectionTo: { line: number; ch: number },
@@ -454,6 +457,7 @@ export default class SubnotesPlugin extends Plugin {
       editor,
       parentFile,
       requestedName,
+      requestedFilename,
       selectedContent,
       selectionFrom,
       selectionTo,
@@ -464,24 +468,25 @@ export default class SubnotesPlugin extends Plugin {
     editor: Editor,
     parentFile: TFile,
     requestedName: string,
+    requestedFilename: string | undefined,
     selectedContent: string,
     selectionFrom: { line: number; ch: number },
     selectionTo: { line: number; ch: number },
   ): Promise<void> {
     const displayTitle = requestedName.trim();
-    const baseName = this.cleanFilename(this.filenameFromDisplayTitle(displayTitle));
-    if (!displayTitle || !baseName) {
+    const availablePath = requestedFilename
+      ? this.getAvailableSubnoteFilename(parentFile, requestedFilename, false)
+      : this.getAvailableSubnoteFilename(parentFile, displayTitle, true);
+    if (!displayTitle || !availablePath) {
       new Notice(this.t('invalidSubnoteNameNotice'));
       return;
     }
 
-    const finalName = this.cleanFilename(this.buildFilename(baseName));
-    const folder = this.getTargetFolder(parentFile);
+    const lastSlash = availablePath.lastIndexOf('/');
+    const folder = lastSlash >= 0 ? availablePath.slice(0, lastSlash) : '';
     await this.ensureFolder(folder);
 
-    const filePath = normalizePath(
-      folder ? `${folder}/${finalName}.md` : `${finalName}.md`,
-    );
+    const filePath = normalizePath(`${availablePath}.md`);
 
     if (this.app.vault.getAbstractFileByPath(filePath)) {
       new Notice(this.t('fileExistsNotice', { path: filePath }));
@@ -2114,6 +2119,82 @@ export default class SubnotesPlugin extends Plugin {
     return this.settings.indicatorPosition === 'prefix'
       ? `${indicator}${baseName}`
       : `${baseName}${indicator}`;
+  }
+
+  private getAvailableSubnoteFilename(
+    parentFile: TFile,
+    requestedName: string,
+    fromDisplayTitle: boolean,
+  ): string {
+    const sourceName = fromDisplayTitle
+      ? this.filenameFromDisplayTitle(requestedName)
+      : requestedName;
+    if (!fromDisplayTitle && /[\\/]$/u.test(sourceName.trim())) {
+      const folderOnly = sourceName
+        .trim()
+        .replace(/\\/g, '/')
+        .replace(/^\/+|\/+$/g, '');
+      return folderOnly ? `${normalizePath(folderOnly)}/` : '';
+    }
+    const normalizedSource = sourceName
+      .replace(/\\/g, '/')
+      .replace(/\.md$/i, '')
+      .replace(/^\/+|\/+$/g, '');
+    const lastSlash = normalizedSource.lastIndexOf('/');
+    const explicitFolder = lastSlash >= 0
+      ? normalizePath(normalizedSource.slice(0, lastSlash))
+      : '';
+    const folder = fromDisplayTitle || lastSlash < 0
+      ? this.getTargetFolder(parentFile)
+      : explicitFolder;
+    const rawFilename = lastSlash >= 0
+      ? normalizedSource.slice(lastSlash + 1)
+      : normalizedSource;
+    const cleanedName = this.cleanFilename(rawFilename);
+    const baseName = this.removeConfiguredIndicator(cleanedName);
+    if (!baseName) return '';
+
+    let counter = 1;
+
+    while (true) {
+      const numberedBase = counter === 1 ? baseName : `${baseName} ${counter}`;
+      const filename = this.cleanFilename(this.buildFilename(numberedBase));
+      const path = normalizePath(folder ? `${folder}/${filename}.md` : `${filename}.md`);
+      if (!this.app.vault.getAbstractFileByPath(path)) {
+        return normalizePath(folder ? `${folder}/${filename}` : filename);
+      }
+      counter += 1;
+    }
+  }
+
+  private getSubnoteFilenameSuggestions(): string[] {
+    const folders = this.app.vault
+      .getAllFolders(false)
+      .filter((folder) => folder.path !== this.virtualTempFolder)
+      .map((folder) => `${folder.path}/`);
+    const files = this.app.vault
+      .getMarkdownFiles()
+      .filter((file) => !file.path.startsWith(`${this.virtualTempFolder}/`))
+      .map((file) => file.path.slice(0, -3));
+
+    return [...folders, ...files].sort((a, b) => a.localeCompare(b));
+  }
+
+  private removeConfiguredIndicator(filename: string): string {
+    if (!this.settings.indicatorEnabled) return filename;
+
+    const indicator = this.settings.indicator.trim();
+    if (!indicator) return filename;
+
+    if (this.settings.indicatorPosition === 'prefix' && filename.startsWith(indicator)) {
+      return filename.slice(indicator.length).trim();
+    }
+
+    if (this.settings.indicatorPosition === 'suffix' && filename.endsWith(indicator)) {
+      return filename.slice(0, -indicator.length).trim();
+    }
+
+    return filename;
   }
 
   private filenameFromDisplayTitle(title: string): string {
